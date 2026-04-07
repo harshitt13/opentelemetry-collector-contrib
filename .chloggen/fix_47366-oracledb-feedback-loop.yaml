@@ -16,7 +16,7 @@ issues: [47366]
 # These lines will be padded with 2 spaces and then inserted directly into the document.
 # Use pipe (|) for multiline entries.
 subtext: |
-  Adds a `/* otel-collector-ignore */` comment prefix to the receiver's internal SQL templates and uses it to filter the collector's footprint out of `V$SQL` and `V$ACTIVE_SESSION_HISTORY` views.
+  Sets Oracle session MODULE to `otel-collector` for receiver DB sessions and filters query-level collection using MODULE-based predicates (`NVL(MODULE, '') != 'otel-collector'`) to avoid inefficient CLOB filtering on SQL_FULLTEXT.
 
 # If your change doesn't affect end users or the exported elements of any package,
 # you should instead start your pull request title with [chore] or use the "Skip Changelog" label.

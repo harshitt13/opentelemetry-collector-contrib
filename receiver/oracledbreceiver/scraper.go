@@ -95,6 +95,9 @@ const (
 	queryDirectWritesMetric     = "DIRECT_WRITES"
 	procedureExecutionsMetric   = "PROCEDURE_EXECUTIONS"
 
+	collectorModuleName         = "otel-collector"
+	setCollectorModuleSQL       = "BEGIN DBMS_APPLICATION_INFO.SET_MODULE(:1, ''); END;"
+
 	// Stored procedure columns
 	objectIDAttr    = "PROGRAM_ID"
 	objectNameAttr  = "PROCEDURE_NAME"
@@ -187,6 +190,13 @@ func (s *oracleScraper) start(context.Context, component.Host) error {
 	s.db, err = s.dbProviderFunc()
 	if err != nil {
 		return fmt.Errorf("failed to open db connection: %w", err)
+	}
+	if s.db != nil {
+		if _, err = s.db.Exec(setCollectorModuleSQL, collectorModuleName); err != nil {
+			if s.logger != nil {
+				s.logger.Debug("failed to set db session module", zap.Error(err))
+			}
+		}
 	}
 	s.statsClient = s.clientProviderFunc(s.db, statsSQL, s.logger)
 	s.sessionCountClient = s.clientProviderFunc(s.db, sessionCountSQL, s.logger)
