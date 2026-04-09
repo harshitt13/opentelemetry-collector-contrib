@@ -17,6 +17,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -95,8 +96,8 @@ const (
 	queryDirectWritesMetric     = "DIRECT_WRITES"
 	procedureExecutionsMetric   = "PROCEDURE_EXECUTIONS"
 
-	collectorModuleName         = "otel-collector"
-	setCollectorModuleSQL       = "BEGIN DBMS_APPLICATION_INFO.SET_MODULE(:1, ''); END;"
+	collectorModuleName   = "otel-collector"
+	setCollectorModuleSQL = "BEGIN DBMS_APPLICATION_INFO.SET_MODULE(:1, ''); END;"
 
 	// Stored procedure columns
 	objectIDAttr    = "PROGRAM_ID"
@@ -139,6 +140,9 @@ type oracleScraper struct {
 	startTime                  pcommon.Timestamp
 	metricsBuilderConfig       metadata.MetricsBuilderConfig
 	logsBuilderConfig          metadata.LogsBuilderConfig
+	profileCollectorQueries    bool
+	oracleQueryMetricsSQL      string
+	samplesQuerySQL            string
 	metricCache                *lru.Cache[string, map[string]int64]
 	topQueryCollectCfg         TopQueryCollection
 	obfuscator                 *obfuscator
@@ -147,41 +151,61 @@ type oracleScraper struct {
 	lastExecutionTimestamp     time.Time
 }
 
-func newScraper(metricsBuilder *metadata.MetricsBuilder, metricsBuilderConfig metadata.MetricsBuilderConfig, scrapeCfg scraperhelper.ControllerConfig, logger *zap.Logger, providerFunc dbProviderFunc, clientProviderFunc clientProviderFunc, instanceName, hostName string) (scraper.Metrics, error) {
+func newScraper(metricsBuilder *metadata.MetricsBuilder, metricsBuilderConfig metadata.MetricsBuilderConfig, scrapeCfg scraperhelper.ControllerConfig, logger *zap.Logger, providerFunc dbProviderFunc, clientProviderFunc clientProviderFunc, instanceName, hostName string, profileCollectorQueries bool) (scraper.Metrics, error) {
 	s := &oracleScraper{
-		mb:                   metricsBuilder,
-		metricsBuilderConfig: metricsBuilderConfig,
-		scrapeCfg:            scrapeCfg,
-		logger:               logger,
-		dbProviderFunc:       providerFunc,
-		clientProviderFunc:   clientProviderFunc,
-		instanceName:         instanceName,
-		hostName:             hostName,
-		serviceInstanceID:    getInstanceID(instanceName, logger),
+		mb:                      metricsBuilder,
+		metricsBuilderConfig:    metricsBuilderConfig,
+		scrapeCfg:               scrapeCfg,
+		logger:                  logger,
+		dbProviderFunc:          providerFunc,
+		clientProviderFunc:      clientProviderFunc,
+		instanceName:            instanceName,
+		hostName:                hostName,
+		profileCollectorQueries: profileCollectorQueries,
+		serviceInstanceID:       getInstanceID(instanceName, logger),
 	}
 	return scraper.NewMetrics(s.scrape, scraper.WithShutdown(s.shutdown), scraper.WithStart(s.start))
 }
 
 func newLogsScraper(logsBuilder *metadata.LogsBuilder, logsBuilderConfig metadata.LogsBuilderConfig, scrapeCfg scraperhelper.ControllerConfig,
 	logger *zap.Logger, providerFunc dbProviderFunc, clientProviderFunc clientProviderFunc, instanceName string, metricCache *lru.Cache[string, map[string]int64],
-	topQueryCollectCfg TopQueryCollection, querySampleCfg QuerySample, hostName string,
+	topQueryCollectCfg TopQueryCollection, querySampleCfg QuerySample, hostName string, profileCollectorQueries bool,
 ) (scraper.Logs, error) {
 	s := &oracleScraper{
-		lb:                 logsBuilder,
-		logsBuilderConfig:  logsBuilderConfig,
-		scrapeCfg:          scrapeCfg,
-		logger:             logger,
-		dbProviderFunc:     providerFunc,
-		clientProviderFunc: clientProviderFunc,
-		instanceName:       instanceName,
-		metricCache:        metricCache,
-		topQueryCollectCfg: topQueryCollectCfg,
-		querySampleCfg:     querySampleCfg,
-		hostName:           hostName,
-		obfuscator:         newObfuscator(),
-		serviceInstanceID:  getInstanceID(instanceName, logger),
+		lb:                      logsBuilder,
+		logsBuilderConfig:       logsBuilderConfig,
+		scrapeCfg:               scrapeCfg,
+		logger:                  logger,
+		dbProviderFunc:          providerFunc,
+		clientProviderFunc:      clientProviderFunc,
+		instanceName:            instanceName,
+		metricCache:             metricCache,
+		topQueryCollectCfg:      topQueryCollectCfg,
+		querySampleCfg:          querySampleCfg,
+		hostName:                hostName,
+		profileCollectorQueries: profileCollectorQueries,
+		obfuscator:              newObfuscator(),
+		serviceInstanceID:       getInstanceID(instanceName, logger),
 	}
 	return scraper.NewLogs(s.scrapeLogs, scraper.WithShutdown(s.shutdown), scraper.WithStart(s.start))
+}
+
+type sqlTemplateData struct {
+	ProfileCollectorQueries bool
+}
+
+func renderSQLTemplate(name, text string, data sqlTemplateData) (string, error) {
+	tmpl, err := template.New(name).Parse(text)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse %s: %w", name, err)
+	}
+
+	var rendered strings.Builder
+	if err := tmpl.Execute(&rendered, data); err != nil {
+		return "", fmt.Errorf("failed to execute %s: %w", name, err)
+	}
+
+	return rendered.String(), nil
 }
 
 func (s *oracleScraper) start(context.Context, component.Host) error {
@@ -191,7 +215,20 @@ func (s *oracleScraper) start(context.Context, component.Host) error {
 	if err != nil {
 		return fmt.Errorf("failed to open db connection: %w", err)
 	}
+
+	queryTemplateData := sqlTemplateData{ProfileCollectorQueries: s.profileCollectorQueries}
+	s.oracleQueryMetricsSQL, err = renderSQLTemplate("oracleQueryMetricsAndTextSql", oracleQueryMetricsSQL, queryTemplateData)
+	if err != nil {
+		return err
+	}
+	s.samplesQuerySQL, err = renderSQLTemplate("oracleQuerySampleSql", samplesQuery, queryTemplateData)
+	if err != nil {
+		return err
+	}
+
 	if s.db != nil {
+		s.db.SetMaxOpenConns(1)
+		s.db.SetMaxIdleConns(1)
 		if _, err = s.db.Exec(setCollectorModuleSQL, collectorModuleName); err != nil {
 			if s.logger != nil {
 				s.logger.Debug("failed to set db session module", zap.Error(err))
@@ -202,7 +239,7 @@ func (s *oracleScraper) start(context.Context, component.Host) error {
 	s.sessionCountClient = s.clientProviderFunc(s.db, sessionCountSQL, s.logger)
 	s.systemResourceLimitsClient = s.clientProviderFunc(s.db, systemResourceLimitsSQL, s.logger)
 	s.tablespaceUsageClient = s.clientProviderFunc(s.db, tablespaceUsageSQL, s.logger)
-	s.samplesQueryClient = s.clientProviderFunc(s.db, samplesQuery, s.logger)
+	s.samplesQueryClient = s.clientProviderFunc(s.db, s.samplesQuerySQL, s.logger)
 	return nil
 }
 
@@ -578,7 +615,7 @@ func (s *oracleScraper) scrapeLogs(ctx context.Context) (plog.Logs, error) {
 func (s *oracleScraper) collectTopNMetricData(ctx context.Context, logs plog.Logs, collectionTime time.Time, lookbackTimeSeconds int) error {
 	var errs []error
 	// get metrics and query texts from DB
-	s.oracleQueryMetricsClient = s.clientProviderFunc(s.db, oracleQueryMetricsSQL, s.logger)
+	s.oracleQueryMetricsClient = s.clientProviderFunc(s.db, s.oracleQueryMetricsSQL, s.logger)
 	metricRows, metricError := s.oracleQueryMetricsClient.metricRows(ctx, lookbackTimeSeconds, s.topQueryCollectCfg.MaxQuerySampleCount)
 
 	if metricError != nil {

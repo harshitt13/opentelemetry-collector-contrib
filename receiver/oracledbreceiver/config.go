@@ -46,6 +46,7 @@ type Config struct {
 	DataSource                     string `mapstructure:"datasource"`
 	Endpoint                       string `mapstructure:"endpoint"`
 	Password                       string `mapstructure:"password"`
+	ProfileCollectorQueries        bool   `mapstructure:"profile_collector_queries"`
 	Service                        string `mapstructure:"service"`
 	Username                       string `mapstructure:"username"`
 	scraperhelper.ControllerConfig `mapstructure:",squash"`

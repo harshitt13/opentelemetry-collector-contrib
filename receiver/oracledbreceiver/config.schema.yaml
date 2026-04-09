@@ -25,6 +25,8 @@ properties:
     type: string
   password:
     type: string
+  profile_collector_queries:
+    type: boolean
   service:
     type: string
   username:

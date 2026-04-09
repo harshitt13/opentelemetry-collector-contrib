@@ -118,6 +118,7 @@ func TestValidateInvalidConfigs(t *testing.T) {
 func TestCreateDefaultConfig(t *testing.T) {
 	cfg := createDefaultConfig().(*Config)
 	assert.Equal(t, 10*time.Second, cfg.ControllerConfig.CollectionInterval)
+	assert.False(t, cfg.ProfileCollectorQueries)
 }
 
 func TestParseConfig(t *testing.T) {
@@ -134,7 +135,9 @@ func TestParseConfig(t *testing.T) {
 	assert.Equal(t, "password", cfg.Password)
 	assert.Equal(t, "localhost:51521", cfg.Endpoint)
 	assert.Equal(t, "XE", cfg.Service)
+	assert.False(t, cfg.ProfileCollectorQueries)
 	settings := cfg.Metrics
 	assert.False(t, settings.OracledbTablespaceSizeUsage.Enabled)
 	assert.False(t, settings.OracledbExchangeDeadlocks.Enabled)
+	require.NoError(t, cfg.Validate())
 }

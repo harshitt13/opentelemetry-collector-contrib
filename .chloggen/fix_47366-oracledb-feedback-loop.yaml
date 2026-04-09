@@ -7,7 +7,7 @@ change_type: bug_fix
 component: receiver/oracledb
 
 # A brief description of the change.  Surround your text with quotes ("") if it needs to start with a backtick (`).
-note: "Exclude the collector's own monitoring queries from Top Query and Query Sample collection to prevent feedback loops."
+note: "Exclude the collector's own monitoring queries from Top Query and Query Sample collection by default, with a config toggle to re-enable them for debugging."
 
 # Mandatory: One or more tracking issues related to the change. You can use the PR number here if no issue exists.
 issues: [47366]
@@ -16,7 +16,8 @@ issues: [47366]
 # These lines will be padded with 2 spaces and then inserted directly into the document.
 # Use pipe (|) for multiline entries.
 subtext: |
-  Sets Oracle session MODULE to `otel-collector` for receiver DB sessions and filters query-level collection using MODULE-based predicates (`NVL(MODULE, '') != 'otel-collector'`) to avoid inefficient CLOB filtering on SQL_FULLTEXT.
+  Sets Oracle session MODULE to `otel-collector` for receiver DB sessions, constrains the SQL connection pool to a single session (`SetMaxOpenConns(1)` / `SetMaxIdleConns(1)`), and conditionally applies MODULE-based exclusion predicates (`NVL(MODULE, '') != 'otel-collector'`) in query templates.
+  Adds `profile_collector_queries` (default: `false`) to allow opt-in profiling of collector-originated queries for troubleshooting.
 
 # If your change doesn't affect end users or the exported elements of any package,
 # you should instead start your pull request title with [chore] or use the "Skip Changelog" label.

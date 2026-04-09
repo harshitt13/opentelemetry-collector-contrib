@@ -41,9 +41,10 @@ func createDefaultConfig() component.Config {
 	cfg.CollectionInterval = 10 * time.Second
 
 	return &Config{
-		ControllerConfig:     cfg,
-		MetricsBuilderConfig: metadata.DefaultMetricsBuilderConfig(),
-		LogsBuilderConfig:    metadata.DefaultLogsBuilderConfig(),
+		ControllerConfig:        cfg,
+		MetricsBuilderConfig:    metadata.DefaultMetricsBuilderConfig(),
+		LogsBuilderConfig:       metadata.DefaultLogsBuilderConfig(),
+		ProfileCollectorQueries: false,
 		QuerySample: QuerySample{
 			MaxRowsPerQuery: 100,
 		},
@@ -78,7 +79,7 @@ func createReceiverFunc(sqlOpenerFunc sqlOpenerFunc, clientProviderFunc clientPr
 
 		mp, err := newScraper(metricsBuilder, sqlCfg.MetricsBuilderConfig, sqlCfg.ControllerConfig, settings.Logger, func() (*sql.DB, error) {
 			return sqlOpenerFunc(getDataSource(*sqlCfg))
-		}, clientProviderFunc, instanceName, hostName)
+		}, clientProviderFunc, instanceName, hostName, sqlCfg.ProfileCollectorQueries)
 		if err != nil {
 			return nil, err
 		}
@@ -124,7 +125,7 @@ func createLogsReceiverFunc(sqlOpenerFunc sqlOpenerFunc, clientProviderFunc clie
 
 		mp, err := newLogsScraper(logsBuilder, sqlCfg.LogsBuilderConfig, sqlCfg.ControllerConfig, settings.Logger, func() (*sql.DB, error) {
 			return sqlOpenerFunc(getDataSource(*sqlCfg))
-		}, clientProviderFunc, instanceName, metricCache, sqlCfg.TopQueryCollection, sqlCfg.QuerySample, hostName)
+		}, clientProviderFunc, instanceName, metricCache, sqlCfg.TopQueryCollection, sqlCfg.QuerySample, hostName, sqlCfg.ProfileCollectorQueries)
 		if err != nil {
 			return nil, err
 		}
