@@ -38,7 +38,5 @@ JOIN V$SQL Q
         ON S.SQL_ID = Q.SQL_ID 
         AND S.SQL_CHILD_NUMBER = Q.CHILD_NUMBER
       WHERE S.SQL_ID IS NOT NULL AND S.STATUS = 'ACTIVE'
-{{ if not .ProfileCollectorQueries }}
-      AND NVL(S.MODULE, '') != 'otel-collector'
-{{ end }}
+      AND Q.SQL_TEXT NOT LIKE '/* otel-collector */%'
 FETCH FIRST :1 ROWS ONLY
