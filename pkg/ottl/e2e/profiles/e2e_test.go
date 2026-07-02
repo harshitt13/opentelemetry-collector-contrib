@@ -260,11 +260,15 @@ func Test_e2e_editors(t *testing.T) {
 		},
 		{
 			statement: `set(attributes["test"], nil)`,
-			want:      func(_ *testing.T, _ *ottlprofile.TransformContext) {},
+			want: func(t *testing.T, tCtx *ottlprofile.TransformContext) {
+				putProfileAttribute(t, tCtx, "test", nil)
+			},
 		},
 		{
 			statement: `set(attributes["test"], attributes["unknown"])`,
-			want:      func(_ *testing.T, _ *ottlprofile.TransformContext) {},
+			want: func(t *testing.T, tCtx *ottlprofile.TransformContext) {
+				putProfileAttribute(t, tCtx, "test", nil)
+			},
 		},
 		{
 			statement: `set(attributes["foo"]["test"], "pass")`,
@@ -1359,7 +1363,9 @@ func Test_e2e_ottl_features(t *testing.T) {
 		{
 			name:      "complex indexing not found",
 			statement: `set(attributes["test"], attributes["metadata"]["uid"])`,
-			want:      func(_ *testing.T, _ *ottlprofile.TransformContext) {},
+			want: func(t *testing.T, tCtx *ottlprofile.TransformContext) {
+				putProfileAttribute(t, tCtx, "test", nil)
+			},
 		},
 		{
 			name:      "map value as input to function",
@@ -1743,6 +1749,8 @@ func putProfileAttribute(t *testing.T, tCtx *ottlprofile.TransformContext, key s
 	dic := tCtx.GetProfilesDictionary()
 	profile := tCtx.GetProfile()
 	switch v := value.(type) {
+	case nil:
+		putAttribute(t, dic, profile, key, pcommon.NewValueEmpty())
 	case string:
 		putAttribute(t, tCtx.GetProfilesDictionary(), tCtx.GetProfile(), key, pcommon.NewValueStr(v))
 	case float64:

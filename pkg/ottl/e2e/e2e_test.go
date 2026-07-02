@@ -351,7 +351,9 @@ func Test_e2e_editors(t *testing.T) {
 		},
 		{
 			statement: `set(attributes["test"], nil)`,
-			want:      func(*ottllog.TransformContext) {},
+			want: func(tCtx *ottllog.TransformContext) {
+				tCtx.GetLogRecord().Attributes().PutEmpty("test")
+			},
 		},
 		{
 			statement: `set(attributes["test"], "nil")`,
@@ -361,7 +363,9 @@ func Test_e2e_editors(t *testing.T) {
 		},
 		{
 			statement: `set(attributes["test"], attributes["unknown"])`,
-			want:      func(*ottllog.TransformContext) {},
+			want: func(tCtx *ottllog.TransformContext) {
+				tCtx.GetLogRecord().Attributes().PutEmpty("test")
+			},
 		},
 		{
 			statement: `set(attributes["foo"]["test"], "pass")`,
@@ -1759,7 +1763,9 @@ func Test_e2e_ottl_features(t *testing.T) {
 		{
 			name:      "complex indexing not found",
 			statement: `set(attributes["test"], attributes["metadata"]["uid"])`,
-			want:      func(*ottllog.TransformContext) {},
+			want: func(tCtx *ottllog.TransformContext) {
+				tCtx.GetLogRecord().Attributes().PutEmpty("test")
+			},
 		},
 		{
 			name:      "map value",

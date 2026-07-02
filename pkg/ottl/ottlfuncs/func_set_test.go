@@ -5,6 +5,7 @@ package ottlfuncs
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,16 +20,20 @@ func Test_set(t *testing.T) {
 
 	target := &ottl.StandardGetSetter[pcommon.Value]{
 		Setter: func(_ context.Context, tCtx pcommon.Value, val any) error {
+			if val == nil {
+				return errors.New("cannot set nil to strict string field")
+			}
 			tCtx.SetStr(val.(string))
 			return nil
 		},
 	}
 
 	tests := []struct {
-		name   string
-		setter ottl.Setter[pcommon.Value]
-		getter ottl.Getter[pcommon.Value]
-		want   func(pcommon.Value)
+		name    string
+		setter  ottl.Setter[pcommon.Value]
+		getter  ottl.Getter[pcommon.Value]
+		want    func(pcommon.Value)
+		wantErr bool
 	}{
 		{
 			name:   "set name",
@@ -41,6 +46,7 @@ func Test_set(t *testing.T) {
 			want: func(expectedValue pcommon.Value) {
 				expectedValue.SetStr("new name")
 			},
+			wantErr: false,
 		},
 		{
 			name:   "set nil value",
@@ -53,6 +59,7 @@ func Test_set(t *testing.T) {
 			want: func(expectedValue pcommon.Value) {
 				expectedValue.SetStr("original name")
 			},
+			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
@@ -62,7 +69,11 @@ func Test_set(t *testing.T) {
 			exprFunc := set(tt.setter, tt.getter)
 
 			result, err := exprFunc(nil, scenarioValue)
-			require.NoError(t, err)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
 			assert.Nil(t, result)
 
 			expected := pcommon.NewValueStr("")
@@ -74,16 +85,18 @@ func Test_set(t *testing.T) {
 }
 
 func Test_set_get_nil(t *testing.T) {
+	setterCalled := false
 	setter := &ottl.StandardGetSetter[any]{
-		Setter: func(context.Context, any, any) error {
-			t.Errorf("nothing should be set in this scenario")
+		Setter: func(_ context.Context, _, val any) error {
+			setterCalled = true
+			assert.Nil(t, val)
 			return nil
 		},
 	}
 
 	getter := &ottl.StandardGetSetter[any]{
-		Getter: func(_ context.Context, tCtx any) (any, error) {
-			return tCtx, nil
+		Getter: func(_ context.Context, _ any) (any, error) {
+			return nil, nil
 		},
 	}
 
@@ -92,4 +105,5 @@ func Test_set_get_nil(t *testing.T) {
 	result, err := exprFunc(nil, nil)
 	require.NoError(t, err)
 	assert.Nil(t, result)
+	assert.True(t, setterCalled, "setter should have been called with nil")
 }

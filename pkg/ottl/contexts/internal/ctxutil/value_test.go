@@ -22,11 +22,11 @@ func Test_SetIndexableValue_InvalidValue(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func Test_SetValue_NilIsNoop(t *testing.T) {
+func Test_SetValue_NilClearsValue(t *testing.T) {
 	value := pcommon.NewValueStr("original")
 	err := ctxutil.SetValue(value, nil)
 	assert.NoError(t, err)
-	assert.Equal(t, "original", value.Str())
+	assert.Equal(t, pcommon.ValueTypeEmpty, value.Type())
 }
 
 func Test_SetValue_UnsupportedType(t *testing.T) {

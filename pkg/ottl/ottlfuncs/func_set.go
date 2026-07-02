@@ -36,13 +36,14 @@ func set[K any](target ottl.Setter[K], value ottl.Getter[K]) ottl.ExprFunc[K] {
 			return nil, err
 		}
 
-		// No fields currently support `null` as a valid type.
-		if val != nil {
-			err = target.Set(ctx, tCtx, val)
-			if err != nil {
-				return nil, err
-			}
+		// Allow nil values to pass through to the target setter.
+		// The underlying Setter is responsible for handling nil (e.g., erroring out
+		// for strict types or converting to pcommon.ValueTypeEmpty for AnyValue).
+		err = target.Set(ctx, tCtx, val)
+		if err != nil {
+			return nil, err
 		}
+
 		return nil, nil
 	}
 }

@@ -16,6 +16,7 @@ import (
 
 func SetValue(value pcommon.Value, val any) error {
 	if val == nil {
+		pcommon.NewValueEmpty().CopyTo(value)
 		return nil
 	}
 	var err error
