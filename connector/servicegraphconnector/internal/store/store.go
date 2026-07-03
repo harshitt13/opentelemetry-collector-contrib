@@ -97,20 +97,20 @@ func (s *Store) UpsertEdge(key Key, update Callback) (isNew bool, err error) {
 			cEdge.ClientLatencySec = prodEdge.ClientLatencySec
 			cEdge.ConnectionType = prodEdge.ConnectionType
 			cEdge.Failed = cEdge.Failed || prodEdge.Failed
-
+			for k, v := range prodEdge.Dimensions {
+				cEdge.Dimensions[k] = v
+			}
+			for k, v := range prodEdge.Peer {
+				cEdge.Peer[k] = v
+			}
 			if cEdge.isComplete() {
 				s.onComplete(cEdge)
 				delete(s.m, cKey)
 				s.l.Remove(cElem)
 			}
 		}
-		// After reconciling pending consumers, remove the producer entry from
-		// the store to avoid duplicate completions on expiry. Consumers have
-		// already been completed with the producer's client info.
+		// After reconciling pending consumers, clear the pending index for this producer.
 		delete(s.pending, producerKey)
-		// remove producer element so it doesn't expire later and produce extra metrics
-		delete(s.m, producerKey)
-		s.l.Remove(prodElem)
 	}
 
 	if storedEdge, ok := s.m[key]; ok {
@@ -152,6 +152,12 @@ func (s *Store) UpsertEdge(key Key, update Callback) (isNew bool, err error) {
 			edge.ClientLatencySec = prodEdge.ClientLatencySec
 			edge.ConnectionType = prodEdge.ConnectionType
 			edge.Failed = edge.Failed || prodEdge.Failed
+			for k, v := range prodEdge.Dimensions {
+				edge.Dimensions[k] = v
+			}
+			for k, v := range prodEdge.Peer {
+				edge.Peer[k] = v
+			}
 
 			if edge.isComplete() {
 				s.onComplete(edge)
