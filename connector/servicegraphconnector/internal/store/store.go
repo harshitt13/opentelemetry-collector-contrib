@@ -6,6 +6,7 @@ package store // import "github.com/open-telemetry/opentelemetry-collector-contr
 import (
 	"container/list"
 	"errors"
+	"maps"
 	"sync"
 	"time"
 
@@ -97,12 +98,10 @@ func (s *Store) UpsertEdge(key Key, update Callback) (isNew bool, err error) {
 			cEdge.ClientLatencySec = prodEdge.ClientLatencySec
 			cEdge.ConnectionType = prodEdge.ConnectionType
 			cEdge.Failed = cEdge.Failed || prodEdge.Failed
-			for k, v := range prodEdge.Dimensions {
-				cEdge.Dimensions[k] = v
-			}
-			for k, v := range prodEdge.Peer {
-				cEdge.Peer[k] = v
-			}
+
+			maps.Copy(cEdge.Dimensions, prodEdge.Dimensions)
+			maps.Copy(cEdge.Peer, prodEdge.Peer)
+
 			if cEdge.isComplete() {
 				s.onComplete(cEdge)
 				delete(s.m, cKey)
@@ -141,8 +140,10 @@ func (s *Store) UpsertEdge(key Key, update Callback) (isNew bool, err error) {
 	update(edge)
 
 	// If this is a consumer edge that references a producer via ProducerKey,
-	// either reconcile immediately if the producer exists, or register this
-	// consumer in the pending index so it can be reconciled later.
+	// we want to reconcile immediately if the producer exists.
+	// If the producer is missing, we flag it to be registered as pending
+	// ONLY AFTER it passes the capacity check.
+	var isPendingConsumer bool
 	if !edge.ProducerKey.SpanIDIsEmpty() {
 		producerKey := edge.ProducerKey
 		if prodElem, ok := s.m[producerKey]; ok {
@@ -152,31 +153,32 @@ func (s *Store) UpsertEdge(key Key, update Callback) (isNew bool, err error) {
 			edge.ClientLatencySec = prodEdge.ClientLatencySec
 			edge.ConnectionType = prodEdge.ConnectionType
 			edge.Failed = edge.Failed || prodEdge.Failed
-			for k, v := range prodEdge.Dimensions {
-				edge.Dimensions[k] = v
-			}
-			for k, v := range prodEdge.Peer {
-				edge.Peer[k] = v
-			}
+
+			maps.Copy(edge.Dimensions, prodEdge.Dimensions)
+			maps.Copy(edge.Peer, prodEdge.Peer)
 
 			if edge.isComplete() {
 				s.onComplete(edge)
 				return true, nil
 			}
 		} else {
-			// Producer not present: register pending consumer for later reconciliation.
-			s.pending[producerKey] = append(s.pending[producerKey], key)
+			// Producer not present: mark for deferred registration.
+			isPendingConsumer = true
 		}
 	}
 
-	// Check we can add new edges
-	if s.l.Len() >= s.maxItems {
-		// TODO: try to evict expired items
+	// Check we can add new edges (Evict if necessary)
+	if s.l.Len() >= s.maxItems && !s.tryEvictHead() {
 		return false, ErrTooManyItems
 	}
 
 	ele := s.l.PushBack(edge)
 	s.m[key] = ele
+
+	// Now that the edge is safely in the store, register its pending status
+	if isPendingConsumer {
+		s.pending[edge.ProducerKey] = append(s.pending[edge.ProducerKey], key)
+	}
 
 	// If this is a producer and there are pending consumers, reconcile now.
 	if consumers, ok := s.pending[key]; ok && len(consumers) > 0 {

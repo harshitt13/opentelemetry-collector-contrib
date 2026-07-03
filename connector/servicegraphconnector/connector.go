@@ -342,10 +342,11 @@ func (p *serviceGraphConnector) aggregateMetrics(ctx context.Context, td ptrace.
 						producerSpanID := link.SpanID()
 						producerKey := store.NewKey(producerTraceID, producerSpanID)
 
-						// Consumer edge should be keyed by the consumer span so multiple
-						// consumers do not collide on the same key.
+						// XOR the consumer span ID with the linked producer span ID to guarantee
+						// a unique key for every link in a batch-consume scenario.
+						uniqueSpanID := combineSpanIDs(span.SpanID(), link.SpanID())
 						consumerTraceID := span.TraceID()
-						consumerKey := store.NewKey(consumerTraceID, span.SpanID())
+						consumerKey := store.NewKey(consumerTraceID, uniqueSpanID)
 
 						isNew, err = p.store.UpsertEdge(consumerKey, func(e *store.Edge) {
 							e.TraceID = consumerTraceID
@@ -887,4 +888,14 @@ func mapDurationsToFloat(vs []time.Duration) []float64 {
 		vsm[i] = durationToFloat(v)
 	}
 	return vsm
+}
+
+// combineSpanIDs creates a unique, deterministic SpanID by XORing two SpanIDs together.
+// This prevents key collisions during batch-consumption (1 consumer span with multiple links).
+func combineSpanIDs(a, b pcommon.SpanID) pcommon.SpanID {
+	var combined pcommon.SpanID
+	for i := range 8 {
+		combined[i] = a[i] ^ b[i]
+	}
+	return combined
 }
