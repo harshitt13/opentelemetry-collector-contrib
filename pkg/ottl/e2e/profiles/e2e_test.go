@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pprofile"
 
@@ -31,6 +32,11 @@ var (
 )
 
 func Test_e2e_editors(t *testing.T) {
+	err := featuregate.GlobalRegistry().Set("ottl.set.allowNil", true)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = featuregate.GlobalRegistry().Set("ottl.set.allowNil", false)
+	})
 	tests := []struct {
 		statement string
 		want      func(t *testing.T, tCtx *ottlprofile.TransformContext)
@@ -1301,6 +1307,11 @@ func Test_e2e_converters(t *testing.T) {
 }
 
 func Test_e2e_ottl_features(t *testing.T) {
+	err := featuregate.GlobalRegistry().Set("ottl.set.allowNil", true)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = featuregate.GlobalRegistry().Set("ottl.set.allowNil", false)
+	})
 	tests := []struct {
 		name      string
 		statement string
