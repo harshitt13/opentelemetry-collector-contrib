@@ -168,6 +168,11 @@ func (m *PerformanceQueryImpl) GetFormattedCounterArrayDouble(hCounter PDH_HCOUN
 			return values, nil
 		}
 	}
+	if IsIgnorablePDHError(ret) {
+		// The process likely terminated or hasn't lived long enough to generate rate data.
+		// Return an empty array so the scraper cleanly skips this counter.
+		return []CounterValue{}, nil
+	}
 	return nil, NewPdhError(ret)
 }
 
@@ -206,6 +211,11 @@ func (m *PerformanceQueryImpl) GetRawCounterArray(hCounter PDH_HCOUNTER) ([]RawC
 			}
 			return values, nil
 		}
+	}
+	if IsIgnorablePDHError(ret) {
+		// The process likely terminated or hasn't lived long enough to generate rate data.
+		// Return an empty array so the scraper cleanly skips this counter.
+		return []RawCounterValue{}, nil
 	}
 	return nil, NewPdhError(ret)
 }
