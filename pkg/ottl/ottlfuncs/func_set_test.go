@@ -7,21 +7,19 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/metadata"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/ottltest"
 )
 
 func Test_set(t *testing.T) {
-	err := featuregate.GlobalRegistry().Set("ottl.set.allowNil", true)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = featuregate.GlobalRegistry().Set("ottl.set.allowNil", false)
-	})
+	t.Cleanup(ottltest.SetFeatureGateForTest(t, metadata.OttlSetAllowNilFeatureGate, true))
 
 	input := pcommon.NewValueStr("original name")
 
@@ -95,34 +93,53 @@ func Test_set(t *testing.T) {
 }
 
 func Test_set_get_nil(t *testing.T) {
-	err := featuregate.GlobalRegistry().Set("ottl.set.allowNil", true)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = featuregate.GlobalRegistry().Set("ottl.set.allowNil", false)
-	})
+	t.Cleanup(ottltest.SetFeatureGateForTest(t, metadata.OttlSetAllowNilFeatureGate, true))
 
-	setterCalled := false
-	setter := &ottl.StandardGetSetter[any]{
-		Getter: func(_ context.Context, _ any) (any, error) {
-			return nil, nil
-		},
-		Setter: func(_ context.Context, _, val any) error {
-			setterCalled = true
-			assert.Nil(t, val)
-			return nil
-		},
+	tests := []struct {
+		name              string
+		targetType        any
+		expectedZeroValue any
+	}{
+		{"string", "old string", ""},
+		{"int64", int64(100), int64(0)},
+		{"float64", float64(1.5), float64(0)},
+		{"bool", true, false},
+		{"[]byte", []byte{1, 2, 3}, []byte(nil)},
+		{"time.Time", time.Now(), time.Time{}},
+		{"time.Duration", time.Second, time.Duration(0)},
+		{"[]any", []any{"val"}, []any(nil)},
+		{"map[string]any", map[string]any{"key": "val"}, map[string]any(nil)},
+		{"pcommon.Map", pcommon.NewMap(), pcommon.Map{}},
+		{"pcommon.Slice", pcommon.NewSlice(), pcommon.Slice{}},
+		{"pcommon.Value", pcommon.NewValueStr("foo"), pcommon.Value{}},
 	}
 
-	getter := &ottl.StandardGetSetter[any]{
-		Getter: func(_ context.Context, _ any) (any, error) {
-			return nil, nil
-		},
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			setterCalled := false
+			setter := &ottl.StandardGetSetter[any]{
+				Getter: func(_ context.Context, _ any) (any, error) {
+					return tt.targetType, nil
+				},
+				Setter: func(_ context.Context, _, val any) error {
+					setterCalled = true
+					assert.Equal(t, tt.expectedZeroValue, val)
+					return nil
+				},
+			}
+
+			getter := &ottl.StandardGetSetter[any]{
+				Getter: func(_ context.Context, _ any) (any, error) {
+					return nil, nil // Simulate passing 'nil' to set()
+				},
+			}
+
+			exprFunc := set[any](setter, getter)
+
+			result, err := exprFunc(nil, nil)
+			require.NoError(t, err)
+			assert.Nil(t, result)
+			assert.True(t, setterCalled, "setter should have been called with the zero-value")
+		})
 	}
-
-	exprFunc := set[any](setter, getter)
-
-	result, err := exprFunc(nil, nil)
-	require.NoError(t, err)
-	assert.Nil(t, result)
-	assert.True(t, setterCalled, "setter should have been called with nil")
 }

@@ -430,7 +430,9 @@ If using OTTL outside of collector configuration, `$` should not be escaped and 
 
 The `set` function allows users to set a telemetry field using a value.
 
-`target` is a path expression to a telemetry field. `value` is any value type. If `value` resolves to `nil`, e.g. it references an unset map value, there will be no action.
+`target` is a path expression to a telemetry field. `value` is any value type. 
+
+**Note on `nil` values:** Prior to the `ottl.set.allowNil` alpha feature gate, if `value` resolves to `nil` (e.g., it references an unset map value), there will be no action. When the `ottl.set.allowNil` feature gate is enabled, passing `nil` will clear the target field (setting it to an empty value/null). For strictly typed fields (like scalars or lists), it safely assigns the target's zero-value (e.g., `""` or `0`) to prevent collector panics. Users relying on the old no-op behavior should migrate their configurations to use conditional checks (e.g., `set(...) where field != nil`).
 
 How the underlying telemetry field is updated is decided by the path expression implementation provided by the user to the `ottl.ParseStatements`.
 
@@ -438,12 +440,9 @@ Examples:
 
 - `set(resource.attributes["http.path"], "/foo")`
 
-
 - `set(metric.name, resource.attributes["http.route"])`
 
-
 - `set(span.trace_state["svc"], "example")`
-
 
 - `set(span.attributes["source"], span.trace_state["source"])`
 

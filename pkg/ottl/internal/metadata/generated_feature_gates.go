@@ -29,3 +29,11 @@ var OttlFunctionsEnableLambdaFeatureGate = featuregate.GlobalRegistry().MustRegi
 	featuregate.WithRegisterReferenceURL("https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/48227"),
 	featuregate.WithRegisterFromVersion("v0.155.0"),
 )
+
+var OttlSetAllowNilFeatureGate = featuregate.GlobalRegistry().MustRegister(
+	"ottl.set.allowNil",
+	featuregate.StageAlpha,
+	featuregate.WithRegisterDescription("When enabled, the set function allows nil values to clear fields and unset maps and slices values."),
+	featuregate.WithRegisterReferenceURL("https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/48714"),
+	featuregate.WithRegisterFromVersion("v0.156.0"),
+)

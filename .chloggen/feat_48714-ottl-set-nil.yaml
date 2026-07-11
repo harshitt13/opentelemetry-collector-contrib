@@ -16,7 +16,7 @@ issues: [48714]
 # These lines will be padded with 2 spaces and then inserted directly into the document.
 # Use pipe (|) for multiline entries.
 subtext: |
-  Previously, passing `nil` to the `set` function was silently ignored. Now, `set(attributes["key"], nil)` explicitly sets the attribute to an empty OTLP value (which marshals to null). Attempting to set strictly typed fields (such as scalars or lists) to `nil` will now return an explicit error rather than silently failing.
+  Prior to this change, setting a field to `nil` (e.g., `set(attributes["key"], nil)`) was a no-op, preserving the existing value. This behavior is deprecated. Under the `ottl.set.allowNil` alpha feature gate, passing `nil` will now clear the field (setting it to an empty value/null) or fall back to the target type's zero-value (e.g., `""` for strings, `0` for integers) to prevent panics. Users relying on the old no-op behavior should add a `where value != nil` condition to their statements to preserve it.
 
 # If your change doesn't affect end users or the exported elements of any package,
 # you should instead start your pull request title with [chore] or use the "Skip Changelog" label.

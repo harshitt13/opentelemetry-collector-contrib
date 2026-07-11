@@ -11,17 +11,8 @@ import (
 	"reflect"
 	"sync"
 
-	"go.opentelemetry.io/collector/featuregate"
-
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
-)
-
-//nolint:forbidigo // allow manual registration for OTTL package feature gate
-var allowNilSetFeatureGate = featuregate.GlobalRegistry().MustRegister(
-	"ottl.set.allowNil",
-	featuregate.StageAlpha,
-	featuregate.WithRegisterDescription("When enabled, the set function allows nil values and sets the target to its zero value."),
-	featuregate.WithRegisterReferenceURL("https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/48714"),
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/metadata"
 )
 
 var warnOnce sync.Once
@@ -53,7 +44,7 @@ func set[K any](target ottl.GetSetter[K], value ottl.Getter[K]) ottl.ExprFunc[K]
 		}
 
 		if val == nil {
-			if !allowNilSetFeatureGate.IsEnabled() {
+			if !metadata.OttlSetAllowNilFeatureGate.IsEnabled() {
 				warnOnce.Do(func() {
 					log.Printf("WARNING: The OTTL 'set' function silently ignored a nil value. This behavior is deprecated and will change in a future release. Enable the feature gate 'ottl.set.allowNil' to use the new zero-value behavior.")
 				})
