@@ -432,7 +432,7 @@ The `set` function allows users to set a telemetry field using a value.
 
 `target` is a path expression to a telemetry field. `value` is any value type. 
 
-**Note on `nil` values:** Prior to the `ottl.set.allowNil` alpha feature gate, if `value` resolves to `nil` (e.g., it references an unset map value), there will be no action. When the `ottl.set.allowNil` feature gate is enabled, passing `nil` will clear the target field (setting it to an empty value/null). For strictly typed fields (like scalars or lists), it safely assigns the target's zero-value (e.g., `""` or `0`) to prevent collector panics. Users relying on the old no-op behavior should migrate their configurations to use conditional checks (e.g., `set(...) where field != nil`).
+**Note on `nil` values:** The default behavior is for `set` to ignore `nil` values, resulting in nothing being set. This behavior changes with the `ottl.set.allowNil` feature gate. When `ottl.set.allowNil` is enabled passing `nil` will clear the target field (setting it to an empty value/null). For strictly typed fields (like scalars or lists), it safely assigns the target's zero-value (e.g., `""` or `0`) to prevent collector panics. Users relying on the old no-op behavior should migrate their configurations to use conditional checks (e.g., `set(...) where field != nil`).
 
 How the underlying telemetry field is updated is decided by the path expression implementation provided by the user to the `ottl.ParseStatements`.
 

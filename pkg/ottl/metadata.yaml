@@ -36,7 +36,7 @@ feature_gates:
   - id: "ottl.set.allowNil"
     description: When enabled, the set function allows nil values to clear fields and unset maps and slices values.
     stage: alpha
-    from_version: v0.156.0
+    from_version: v0.157.0
     reference_url: https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/48714
     skip_strict_validation: true
     
