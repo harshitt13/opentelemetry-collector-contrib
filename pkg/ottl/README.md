@@ -73,6 +73,14 @@ There is a lot more OTTL can do, like nested functions, arithmetic, indexing, an
 - To select spans to be sampled, use the [tail sampling processor](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/tailsamplingprocessor/README.md).
 - To route data between pipelines, use the [routing connector](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/connector/routingconnector/README.md).
 
+## Feature Gate
+
+### `ottl.set.allowNil`
+
+The `ottl.set.allowNil` [feature gate](https://github.com/open-telemetry/opentelemetry-collector/blob/main/featuregate/README.md) changes the behavior of the `set` function when a `nil` value is evaluated. This gate is currently in `alpha`. 
+
+Prior to this gate, passing `nil` to the `set` function (e.g., `set(attributes["key"], nil)`) was a no-op that preserved the existing target value. When this gate is enabled, `set` passes the `nil` value directly to the target's setter. For fields that support empty states (like `pcommon.Map` or `pcommon.Slice`), this will clear the field. For strictly typed fields (like strings or integers), this will result in an error. Users relying on the old no-op behavior should migrate their configurations to use conditional checks (e.g., `set(...) where field != nil`).
+
 ## Troubleshooting
 
 When using OTTL you can enable debug logging in the collector to print out useful information,
