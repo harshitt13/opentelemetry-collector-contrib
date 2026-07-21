@@ -429,7 +429,7 @@ If using OTTL outside of collector configuration, `$` should not be escaped and 
 `set(target, value)`
 
 > [!NOTE]
-> The `ottl.set.allowNil` feature gate changes the behavior of `set` when a `nil` value is passed. Prior to this gate, passing `nil` was a no-op. When enabled, `set` will pass the `nil` value directly to the target, which may result in an error or an empty value depending on the target's underlying type.
+> The [`ottl.set.allowNil`](../documentation.md#feature-gates) feature gate changes the behavior of `set` when a `nil` value is passed. Prior to this gate, passing `nil` was a no-op. When enabled, `set` will pass the `nil` value directly to the target, which may result in an error or an empty value depending on the target's underlying type.
 
 The `set` function allows users to set a telemetry field using a value.
 
