@@ -35,14 +35,19 @@ const (
 	encodingFormatAttributeName = "encoding.format"
 )
 
-// allowedDataStreamTypes lists the data_stream.type values that users are
-// allowed to set via attributes when using the 'bodymap' mapping mode.
-var allowedDataStreamTypes = map[string]bool{
-	defaultDataStreamTypeLogs:       true,
-	defaultDataStreamTypeMetrics:    true,
-	defaultDataStreamTypeTraces:     true,
-	defaultDataStreamTypeProfiles:   true,
-	defaultDataStreamTypeSynthetics: true,
+// isAllowedDataStreamType reports whether dsType is a valid data_stream.type
+// value that users may set via attributes when using the 'bodymap' mapping mode.
+func isAllowedDataStreamType(dsType string) bool {
+	switch dsType {
+	case defaultDataStreamTypeLogs,
+		defaultDataStreamTypeMetrics,
+		defaultDataStreamTypeTraces,
+		defaultDataStreamTypeProfiles,
+		defaultDataStreamTypeSynthetics:
+		return true
+	default:
+		return false
+	}
 }
 
 // Sanitize the datastream fields (dataset, namespace) to apply restrictions
@@ -195,7 +200,7 @@ func routeRecord(
 	// if mapping mode is bodymap, allow overriding data_stream.type
 	if mode == MappingBodyMap {
 		dsType, _ = getFromAttributes(elasticsearch.DataStreamType, defaultDSType, recordAttr, scopeAttr, resourceAttr)
-		if !allowedDataStreamTypes[dsType] {
+		if !isAllowedDataStreamType(dsType) {
 			return elasticsearch.Index{}, fmt.Errorf("data_stream.type %q is not allowed for 'bodymap' mapping mode", dsType)
 		}
 	}
