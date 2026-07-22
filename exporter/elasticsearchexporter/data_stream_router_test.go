@@ -141,7 +141,7 @@ func TestRouteLogRecord(t *testing.T) {
 		attrs := pcommon.NewMap()
 		attrs.PutStr("data_stream.type", dsType)
 		_, err := router.routeLogRecord(pcommon.NewResource(), pcommon.NewInstrumentationScope(), attrs)
-		require.Error(t, err, `data_stream.type "random" is not allowed for 'bodymap' mapping mode`)
+		require.EqualError(t, err, `data_stream.type "random" is not allowed for 'bodymap' mapping mode`)
 	})
 }
 
