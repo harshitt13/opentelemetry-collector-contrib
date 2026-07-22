@@ -4,7 +4,7 @@
 package elasticsearchexporter // import "github.com/open-telemetry/opentelemetry-collector-contrib/exporter/elasticsearchexporter"
 
 import (
-	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -34,6 +34,16 @@ const (
 	disallowedDatasetRunes      = "-\\/*?\"<>| ,#:"
 	encodingFormatAttributeName = "encoding.format"
 )
+
+// allowedDataStreamTypes lists the data_stream.type values that users are
+// allowed to set via attributes when using the 'bodymap' mapping mode.
+var allowedDataStreamTypes = map[string]bool{
+	defaultDataStreamTypeLogs:       true,
+	defaultDataStreamTypeMetrics:    true,
+	defaultDataStreamTypeTraces:     true,
+	defaultDataStreamTypeProfiles:   true,
+	defaultDataStreamTypeSynthetics: true,
+}
 
 // Sanitize the datastream fields (dataset, namespace) to apply restrictions
 // as outlined in https://www.elastic.co/guide/en/ecs/current/ecs-data_stream.html
@@ -185,8 +195,8 @@ func routeRecord(
 	// if mapping mode is bodymap, allow overriding data_stream.type
 	if mode == MappingBodyMap {
 		dsType, _ = getFromAttributes(elasticsearch.DataStreamType, defaultDSType, recordAttr, scopeAttr, resourceAttr)
-		if dsType != "logs" && dsType != "metrics" {
-			return elasticsearch.Index{}, errors.New("data_stream.type cannot be other than logs or metrics")
+		if !allowedDataStreamTypes[dsType] {
+			return elasticsearch.Index{}, fmt.Errorf("data_stream.type %q is not allowed for 'bodymap' mapping mode", dsType)
 		}
 	}
 
