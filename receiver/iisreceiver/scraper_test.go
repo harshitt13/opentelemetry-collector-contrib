@@ -165,7 +165,7 @@ func TestMaxQueueItemAgeNegativeDenominatorScrapeFailure(t *testing.T) {
 	)
 
 	expectedError := "Failed to scrape counter \"counter\": A counter with a negative denominator value was detected.\r\n"
-	mockWatcher, err := newMockWatcherFactory(errors.New(expectedError))("", "", "", zap.NewNop())
+	mockWatcher, err := newMockWatcherFactory(mockIgnorableError{errors.New(expectedError)})("", "", "", zap.NewNop())
 	require.NoError(t, err)
 	scraper.queueMaxAgeWatchers = []instanceWatcher{
 		{
@@ -212,6 +212,14 @@ func disableEnabledFieldsRecursively(v reflect.Value) {
 
 		disableEnabledFieldsRecursively(field)
 	}
+}
+
+type mockIgnorableError struct {
+	error
+}
+
+func (mockIgnorableError) IsIgnorable() bool {
+	return true
 }
 
 type mockPerfCounter struct {

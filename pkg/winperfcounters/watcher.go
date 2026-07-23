@@ -129,16 +129,18 @@ func (pc *perfCounter) Reset() error {
 	return nil
 }
 
-// isIgnorablePDHErr checks if err wraps a PdhError with an ignorable error code.
-// If so, it logs the error at debug level with the counter path and returns true.
-func (pc *perfCounter) isIgnorablePDHErr(err error) bool {
+// IsIgnorableError checks if err wraps a PdhError with an ignorable error code.
+func IsIgnorableError(err error) bool {
 	var pdhErr *win_perf_counters.PdhError
 	if errors.As(err, &pdhErr) && win_perf_counters.IsIgnorablePDHError(pdhErr.ErrorCode) {
-		pc.logger.Debug("Transient PDH error; skipping counter instance",
-			zap.String("counter", pc.path),
-			zap.Error(err),
-		)
 		return true
+	}
+	type ignorable interface {
+		IsIgnorable() bool
+	}
+	var ignErr ignorable
+	if errors.As(err, &ignErr) {
+		return ignErr.IsIgnorable()
 	}
 	return false
 }
@@ -162,9 +164,6 @@ func (pc *perfCounter) ScrapeData() ([]CounterValue, error) {
 
 	vals, err := pc.query.GetFormattedCounterArrayDouble(pc.handle)
 	if err != nil {
-		if pc.isIgnorablePDHErr(err) {
-			return nil, nil
-		}
 		return nil, fmt.Errorf("failed to format data for performance counter '%s': %w", pc.path, err)
 	}
 
@@ -183,9 +182,6 @@ func (pc *perfCounter) ScrapeRawValues() ([]RawCounterValue, error) {
 
 	vals, err := pc.query.GetRawCounterArray(pc.handle)
 	if err != nil {
-		if pc.isIgnorablePDHErr(err) {
-			return nil, nil
-		}
 		return nil, fmt.Errorf("failed to get raw data for performance counter '%s': %w", pc.path, err)
 	}
 

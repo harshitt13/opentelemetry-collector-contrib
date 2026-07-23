@@ -132,8 +132,10 @@ func (s *windowsPerfCountersScraper) scrape(context.Context) (pmetric.Metrics, e
 	for _, watcher := range s.watchers {
 		counterVals, err := watcher.ScrapeData()
 		if err != nil {
-			errs = multierr.Append(errs, err)
-			scrapeFailures++
+			if !winperfcounters.IsIgnorableError(err) {
+				errs = multierr.Append(errs, err)
+				scrapeFailures++
+			}
 			continue
 		}
 

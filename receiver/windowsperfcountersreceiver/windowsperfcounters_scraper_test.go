@@ -175,9 +175,9 @@ func Test_WindowsPerfCounterScraper(t *testing.T) {
 				},
 				PerfCounters: []ObjectConfig{
 					{
-						Object:    ".NET CLR Memory",
+						Object:    "Process",
 						Instances: []string{"NoMatchingInstance*"},
-						Counters:  []CounterConfig{{Name: "% Time in GC", MetricRep: MetricRep{Name: "no.matching.instance"}}},
+						Counters:  []CounterConfig{{Name: "% Processor Time", MetricRep: MetricRep{Name: "no.matching.instance"}}},
 					},
 				},
 				ControllerConfig: scraperhelper.ControllerConfig{CollectionInterval: time.Minute, InitialDelay: time.Second},
@@ -231,32 +231,34 @@ func Test_WindowsPerfCounterScraper(t *testing.T) {
 				assert.EqualError(t, log.Context[0].Interface.(error), test.startErr)
 				return
 			}
+			for _, log := range obs.All() {
+				fmt.Printf("Log: %v\n", log)
+			}
 			require.Equal(t, 0, obs.Len())
+			require.NoError(t, err)
+
+			expectedMetrics, err := golden.ReadMetrics(test.expectedMetricPath)
 			require.NoError(t, err)
 
 			var actualMetrics pmetric.Metrics
 			require.EventuallyWithT(t, func(c *assert.CollectT) {
 				actualMetrics, err = scraper.scrape(t.Context())
 				assert.NoError(c, err)
+				assert.NoError(c, pmetrictest.CompareMetrics(expectedMetrics, actualMetrics,
+					// Scraping test host means static values, timestamps and instance counts are unreliable. ScopeMetrics order is also unpredictable.
+					// The check only takes the first instance of multi-instance counters and assumes that the other instances would be included.
+					pmetrictest.IgnoreSubsequentDataPoints("cpu.idle"),
+					pmetrictest.IgnoreSubsequentDataPoints("processor.time"),
+					pmetrictest.IgnoreMetricsOrder(),
+					pmetrictest.IgnoreScopeMetricsOrder(),
+					pmetrictest.IgnoreResourceMetricsOrder(),
+					pmetrictest.IgnoreMetricValues(),
+					pmetrictest.IgnoreTimestamp(),
+				))
 			}, 20*time.Second, 1*time.Second)
 
 			err = scraper.shutdown(t.Context())
-
 			require.NoError(t, err)
-			expectedMetrics, err := golden.ReadMetrics(test.expectedMetricPath)
-			require.NoError(t, err)
-
-			require.NoError(t, pmetrictest.CompareMetrics(expectedMetrics, actualMetrics,
-				// Scraping test host means static values, timestamps and instance counts are unreliable. ScopeMetrics order is also unpredictable.
-				// The check only takes the first instance of multi-instance counters and assumes that the other instances would be included.
-				pmetrictest.IgnoreSubsequentDataPoints("cpu.idle"),
-				pmetrictest.IgnoreSubsequentDataPoints("processor.time"),
-				pmetrictest.IgnoreMetricsOrder(),
-				pmetrictest.IgnoreScopeMetricsOrder(),
-				pmetrictest.IgnoreResourceMetricsOrder(),
-				pmetrictest.IgnoreMetricValues(),
-				pmetrictest.IgnoreTimestamp(),
-			))
 		})
 	}
 }

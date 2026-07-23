@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"strings"
 	"time"
 
 	"go.opentelemetry.io/collector/component"
@@ -157,8 +156,6 @@ func (rcvr *iisReceiver) scrapeInstanceMetrics(wrs []watcherRecorder, instanceTo
 	}
 }
 
-var negativeDenominatorError = "A counter with a negative denominator value was detected."
-
 func (rcvr *iisReceiver) scrapeMaxQueueAgeMetrics(appToRecorders map[string][]valRecorder) {
 	if !rcvr.config.Metrics.IisRequestQueueAgeMax.Enabled {
 		return
@@ -172,7 +169,7 @@ func (rcvr *iisReceiver) scrapeMaxQueueAgeMetrics(appToRecorders map[string][]va
 
 		var value float64
 		switch {
-		case err != nil && (strings.Contains(err.Error(), negativeDenominatorError) || strings.Contains(err.Error(), "800007D6")):
+		case err != nil && winperfcounters.IsIgnorableError(err):
 			// This error occurs when there are no items in the queue;
 			// in this case, we would like to emit a 0 instead of logging an error (this is an expected scenario).
 			value = 0

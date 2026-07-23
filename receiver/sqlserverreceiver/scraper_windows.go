@@ -102,7 +102,9 @@ func recordersPerDatabase(watcherRecorders []watcherRecorder) (map[string][]curr
 	for _, wr := range watcherRecorders {
 		counterValues, err := wr.watcher.ScrapeData()
 		if err != nil {
-			errs = multierr.Append(errs, err)
+			if !winperfcounters.IsIgnorableError(err) {
+				errs = multierr.Append(errs, err)
+			}
 			continue
 		}
 
