@@ -220,14 +220,14 @@ type mockPerfCounter struct {
 }
 
 func newMockWatcherFactory(watchErr error) func(string, string,
-	string) (winperfcounters.PerfCounterWatcher, error) {
-	return func(string, string, string) (winperfcounters.PerfCounterWatcher, error) {
+	string, *zap.Logger) (winperfcounters.PerfCounterWatcher, error) {
+	return func(string, string, string, *zap.Logger) (winperfcounters.PerfCounterWatcher, error) {
 		return &mockPerfCounter{watchErr: watchErr, value: 1}, nil
 	}
 }
 
-func newMockWatcherFactorFromPath(watchErr error, value float64) func(string) (winperfcounters.PerfCounterWatcher, error) {
-	return func(_ string) (winperfcounters.PerfCounterWatcher, error) {
+func newMockWatcherFactorFromPath(watchErr error, value float64) func(string, *zap.Logger) (winperfcounters.PerfCounterWatcher, error) {
+	return func(_ string, _ *zap.Logger) (winperfcounters.PerfCounterWatcher, error) {
 		return &mockPerfCounter{watchErr: watchErr, value: value}, nil
 	}
 }

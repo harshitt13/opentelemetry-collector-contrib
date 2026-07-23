@@ -65,7 +65,7 @@ func (w *mockPerfCounter) Close() error {
 func mockPerfCounterFactoryInvocations(mpcs ...mockPerfCounter) newWatcherFunc {
 	invocationNum := 0
 
-	return func(string, string, string) (winperfcounters.PerfCounterWatcher, error) {
+	return func(string, string, string, *zap.Logger) (winperfcounters.PerfCounterWatcher, error) {
 		if invocationNum == len(mpcs) {
 			return nil, fmt.Errorf("invoked watcher %d times but only %d were setup", invocationNum+1, len(mpcs))
 		}
@@ -338,7 +338,7 @@ func TestInitWatchers(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			s := &windowsPerfCountersScraper{cfg: &Config{PerfCounters: test.cfgs}, newWatcher: winperfcounters.NewWatcher}
+			s := &windowsPerfCountersScraper{cfg: &Config{PerfCounters: test.cfgs}, newWatcher: winperfcounters.NewWatcher, settings: componenttest.NewNopTelemetrySettings()}
 			watchers, errs := s.initWatchers()
 			if test.expectedErr != "" {
 				require.EqualError(t, errs, test.expectedErr)

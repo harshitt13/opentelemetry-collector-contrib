@@ -16,23 +16,26 @@ import (
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/scraper/scrapererror"
 	"go.uber.org/multierr"
+	"go.uber.org/zap"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/activedirectorydsreceiver/internal/metadata"
 )
 
 type activeDirectoryDSScraper struct {
-	mb *metadata.MetricsBuilder
-	w  *watchers
+	mb     *metadata.MetricsBuilder
+	w      *watchers
+	logger *zap.Logger
 }
 
 func newActiveDirectoryDSScraper(mbc metadata.MetricsBuilderConfig, params receiver.Settings) *activeDirectoryDSScraper {
 	return &activeDirectoryDSScraper{
-		mb: metadata.NewMetricsBuilder(mbc, params),
+		mb:     metadata.NewMetricsBuilder(mbc, params),
+		logger: params.Logger,
 	}
 }
 
 func (a *activeDirectoryDSScraper) start(_ context.Context, _ component.Host) error {
-	watchers, err := getWatchers(defaultWatcherCreator{})
+	watchers, err := getWatchers(defaultWatcherCreator{logger: a.logger})
 	if err != nil {
 		return fmt.Errorf("failed to create performance counter watchers: %w", err)
 	}

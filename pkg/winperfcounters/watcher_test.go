@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"golang.org/x/sys/windows"
 )
 
@@ -46,7 +47,7 @@ func TestCounterPath(t *testing.T) {
 
 // Test_Scraping_Wildcard tests that wildcard instances pull out values
 func Test_Scraping_Wildcard(t *testing.T) {
-	watcher, err := NewWatcher("LogicalDisk", "*", "Free Megabytes")
+	watcher, err := NewWatcher("LogicalDisk", "*", "Free Megabytes", zap.NewNop())
 	require.NoError(t, err)
 
 	values, err := watcher.ScrapeData()
@@ -68,7 +69,7 @@ func Test_Scraping_Wildcard(t *testing.T) {
 }
 
 func TestWatcher_ScrapeRawValue(t *testing.T) {
-	watcher, err := NewWatcher("Memory", "", "Page Reads/Sec")
+	watcher, err := NewWatcher("Memory", "", "Page Reads/Sec", zap.NewNop())
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, watcher.Close())
@@ -82,7 +83,7 @@ func TestWatcher_ScrapeRawValue(t *testing.T) {
 }
 
 func TestWatcher_ScrapeRawValue_NoData(t *testing.T) {
-	watcher, err := NewWatcher(".NET CLR Memory", "NonExistingInstance", "% Time in GC")
+	watcher, err := NewWatcher(".NET CLR Memory", "NonExistingInstance", "% Time in GC", zap.NewNop())
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, watcher.Close())
@@ -96,14 +97,14 @@ func TestWatcher_ScrapeRawValue_NoData(t *testing.T) {
 }
 
 func TestNewPerfCounter_InvalidPath(t *testing.T) {
-	_, err := newPerfCounter("Invalid Counter Path", false)
+	_, err := newPerfCounter("Invalid Counter Path", false, zap.NewNop())
 	if assert.Error(t, err) {
 		assert.Regexp(t, "^Unable to parse the counter path", err.Error())
 	}
 }
 
 func TestNewPerfCounter(t *testing.T) {
-	pc, err := newPerfCounter(`\Memory\Committed Bytes`, false)
+	pc, err := newPerfCounter(`\Memory\Committed Bytes`, false, zap.NewNop())
 	require.NoError(t, err, "Failed to create performance counter: %v", err)
 
 	assert.NotNil(t, pc.query)
@@ -120,7 +121,7 @@ func TestNewPerfCounter(t *testing.T) {
 }
 
 func TestNewPerfCounter_CollectOnStartup(t *testing.T) {
-	pc, err := newPerfCounter(`\Memory\Committed Bytes`, true)
+	pc, err := newPerfCounter(`\Memory\Committed Bytes`, true, zap.NewNop())
 	require.NoError(t, err, "Failed to create performance counter: %v", err)
 
 	assert.NotNil(t, pc.query)
@@ -137,7 +138,7 @@ func TestNewPerfCounter_CollectOnStartup(t *testing.T) {
 }
 
 func TestPerfCounter_Close(t *testing.T) {
-	pc, err := newPerfCounter(`\Memory\Committed Bytes`, false)
+	pc, err := newPerfCounter(`\Memory\Committed Bytes`, false, zap.NewNop())
 	require.NoError(t, err)
 
 	err = pc.Close()
@@ -150,7 +151,7 @@ func TestPerfCounter_Close(t *testing.T) {
 }
 
 func TestPerfCounter_NonExistentInstance_NoError(t *testing.T) {
-	pc, err := newPerfCounter(`\.NET CLR Memory(NonExistentInstance)\% Time in GC`, true)
+	pc, err := newPerfCounter(`\.NET CLR Memory(NonExistentInstance)\% Time in GC`, true, zap.NewNop())
 	require.NoError(t, err)
 
 	data, err := pc.ScrapeData()
@@ -160,7 +161,7 @@ func TestPerfCounter_NonExistentInstance_NoError(t *testing.T) {
 }
 
 func TestPerfCounter_Reset(t *testing.T) {
-	pc, err := newPerfCounter(`\Memory\Committed Bytes`, false)
+	pc, err := newPerfCounter(`\Memory\Committed Bytes`, false, zap.NewNop())
 	require.NoError(t, err)
 
 	path, handle, query := pc.Path(), pc.handle, pc.query
@@ -232,7 +233,7 @@ func TestPerfCounter_Scrape(t *testing.T) {
 
 	for _, test := range testCases {
 		t.Run(test.name, func(t *testing.T) {
-			pc, err := newPerfCounter(test.path, false)
+			pc, err := newPerfCounter(test.path, false, zap.NewNop())
 			require.NoError(t, err)
 
 			data, err := pc.ScrapeData()

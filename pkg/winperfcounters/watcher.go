@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/winperfcounters/internal/third_party/telegraf/win_perf_counters"
 )
 
@@ -42,16 +44,17 @@ type perfCounter struct {
 	path   string
 	query  win_perf_counters.PerformanceQuery
 	handle win_perf_counters.PDH_HCOUNTER
+	logger *zap.Logger
 }
 
 // NewWatcher creates new PerfCounterWatcher by provided parts of its path.
-func NewWatcher(object, instance, counterName string) (PerfCounterWatcher, error) {
-	return NewWatcherFromPath(counterPath(object, instance, counterName))
+func NewWatcher(object, instance, counterName string, logger *zap.Logger) (PerfCounterWatcher, error) {
+	return NewWatcherFromPath(counterPath(object, instance, counterName), logger)
 }
 
 // NewWatcherFromPath creates new PerfCounterWatcher by provided path.
-func NewWatcherFromPath(path string) (PerfCounterWatcher, error) {
-	counter, err := newPerfCounter(path, true)
+func NewWatcherFromPath(path string, logger *zap.Logger) (PerfCounterWatcher, error) {
+	counter, err := newPerfCounter(path, true, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create perf counter with path %v: %w", path, err)
 	}
@@ -67,7 +70,7 @@ func counterPath(object, instance, counterName string) string {
 }
 
 // newPerfCounter returns a new performance counter for the specified descriptor.
-func newPerfCounter(counterPath string, collectOnStartup bool) (*perfCounter, error) {
+func newPerfCounter(counterPath string, collectOnStartup bool, logger *zap.Logger) (*perfCounter, error) {
 	query, handle, err := initQuery(counterPath, collectOnStartup)
 	if err != nil {
 		return nil, err
@@ -77,6 +80,7 @@ func newPerfCounter(counterPath string, collectOnStartup bool) (*perfCounter, er
 		path:   counterPath,
 		query:  query,
 		handle: *handle,
+		logger: logger,
 	}
 
 	return counter, nil
@@ -125,6 +129,20 @@ func (pc *perfCounter) Reset() error {
 	return nil
 }
 
+// isIgnorablePDHErr checks if err wraps a PdhError with an ignorable error code.
+// If so, it logs the error at debug level with the counter path and returns true.
+func (pc *perfCounter) isIgnorablePDHErr(err error) bool {
+	var pdhErr *win_perf_counters.PdhError
+	if errors.As(err, &pdhErr) && win_perf_counters.IsIgnorablePDHError(pdhErr.ErrorCode) {
+		pc.logger.Debug("Transient PDH error; skipping counter instance",
+			zap.String("counter", pc.path),
+			zap.Error(err),
+		)
+		return true
+	}
+	return false
+}
+
 func (pc *perfCounter) Close() error {
 	return pc.query.Close()
 }
@@ -144,6 +162,9 @@ func (pc *perfCounter) ScrapeData() ([]CounterValue, error) {
 
 	vals, err := pc.query.GetFormattedCounterArrayDouble(pc.handle)
 	if err != nil {
+		if pc.isIgnorablePDHErr(err) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("failed to format data for performance counter '%s': %w", pc.path, err)
 	}
 
@@ -162,6 +183,9 @@ func (pc *perfCounter) ScrapeRawValues() ([]RawCounterValue, error) {
 
 	vals, err := pc.query.GetRawCounterArray(pc.handle)
 	if err != nil {
+		if pc.isIgnorablePDHErr(err) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("failed to get raw data for performance counter '%s': %w", pc.path, err)
 	}
 

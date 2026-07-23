@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"go.uber.org/multierr"
+	"go.uber.org/zap"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/winperfcounters"
 )
@@ -228,8 +229,10 @@ const (
 	object       = "DirectoryServices"
 )
 
-type defaultWatcherCreator struct{}
+type defaultWatcherCreator struct {
+	logger *zap.Logger
+}
 
-func (defaultWatcherCreator) Create(counterName string) (winperfcounters.PerfCounterWatcher, error) {
-	return winperfcounters.NewWatcher(object, instanceName, counterName)
+func (d defaultWatcherCreator) Create(counterName string) (winperfcounters.PerfCounterWatcher, error) {
+	return winperfcounters.NewWatcher(object, instanceName, counterName, d.logger)
 }

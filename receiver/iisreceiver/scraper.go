@@ -37,8 +37,8 @@ type iisReceiver struct {
 	mb                      *metadata.MetricsBuilder
 
 	// for mocking
-	newWatcher         func(string, string, string) (winperfcounters.PerfCounterWatcher, error)
-	newWatcherFromPath func(string) (winperfcounters.PerfCounterWatcher, error)
+	newWatcher         func(string, string, string, *zap.Logger) (winperfcounters.PerfCounterWatcher, error)
+	newWatcherFromPath func(string, *zap.Logger) (winperfcounters.PerfCounterWatcher, error)
 	expandWildcardPath func(string) ([]string, error)
 }
 
@@ -213,7 +213,7 @@ func (rcvr *iisReceiver) buildWatcherRecorders(confs []perfCounterRecorderConf, 
 
 	for _, pcr := range confs {
 		for perfCounterName, recorder := range pcr.recorders {
-			w, err := rcvr.newWatcher(pcr.object, pcr.instance, perfCounterName)
+			w, err := rcvr.newWatcher(pcr.object, pcr.instance, perfCounterName, rcvr.params.Logger)
 			if err != nil {
 				scrapeErrors.AddPartial(1, err)
 				continue
@@ -258,7 +258,7 @@ func (rcvr *iisReceiver) buildMaxQueueItemAgeWatchers(scrapeErrors *scrapererror
 			continue
 		}
 
-		watcher, err := rcvr.newWatcherFromPath(path)
+		watcher, err := rcvr.newWatcherFromPath(path, rcvr.params.Logger)
 		if err != nil {
 			scrapeErrors.AddPartial(1, fmt.Errorf("failed to create watcher from %q: %w", path, err))
 			continue
