@@ -157,15 +157,22 @@ func (rcvr *iisReceiver) scrapeInstanceMetrics(wrs []watcherRecorder, instanceTo
 	}
 }
 
-var negativeDenominatorError = "A counter with a negative denominator value was detected.\r\n"
+var negativeDenominatorError = "A counter with a negative denominator value was detected."
 
 func (rcvr *iisReceiver) scrapeMaxQueueAgeMetrics(appToRecorders map[string][]valRecorder) {
+	if !rcvr.config.Metrics.IisRequestQueueAgeMax.Enabled {
+		return
+	}
+
+	watchedInstances := map[string]bool{}
+
 	for _, wr := range rcvr.queueMaxAgeWatchers {
+		watchedInstances[wr.instance] = true
 		counterValues, err := wr.watcher.ScrapeData()
 
 		var value float64
 		switch {
-		case err != nil && strings.HasSuffix(err.Error(), negativeDenominatorError):
+		case err != nil && (strings.Contains(err.Error(), negativeDenominatorError) || strings.Contains(err.Error(), "800007D6")):
 			// This error occurs when there are no items in the queue;
 			// in this case, we would like to emit a 0 instead of logging an error (this is an expected scenario).
 			value = 0
@@ -173,8 +180,9 @@ func (rcvr *iisReceiver) scrapeMaxQueueAgeMetrics(appToRecorders map[string][]va
 			rcvr.params.Logger.Warn("some performance counters could not be scraped; ", zap.Error(err))
 			continue
 		case len(counterValues) == 0:
-			// No counters scraped
-			continue
+			// No counters scraped, meaning the queue is likely empty (e.g., PDH_NO_DATA or PDH_CALC_NEGATIVE_DENOMINATOR).
+			// We would like to emit a 0 instead of skipping the metric.
+			value = 0
 		default:
 			value = counterValues[0].Value
 		}
@@ -184,6 +192,19 @@ func (rcvr *iisReceiver) scrapeMaxQueueAgeMetrics(appToRecorders map[string][]va
 				val:    value,
 				record: recordMaxQueueItemAge,
 			})
+	}
+
+	// For any app pool that was discovered but didn't have a MaxQueueItemAge watcher
+	// (likely because its HTTP queue was empty at startup and the instance didn't exist yet),
+	// we emit a 0 value to avoid dropping the metric.
+	for appPool := range appToRecorders {
+		if !watchedInstances[appPool] {
+			appToRecorders[appPool] = append(appToRecorders[appPool],
+				valRecorder{
+					val:    0,
+					record: recordMaxQueueItemAge,
+				})
+		}
 	}
 }
 
