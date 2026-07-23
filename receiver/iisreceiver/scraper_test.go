@@ -99,7 +99,7 @@ func TestScrapeFailure(t *testing.T) {
 	)
 
 	expectedError := "failure to collect metric"
-	mockWatcher, err := newMockWatcherFactory(errors.New(expectedError))("", "", "")
+	mockWatcher, err := newMockWatcherFactory(errors.New(expectedError))("", "", "", zap.NewNop())
 	require.NoError(t, err)
 	scraper.totalWatcherRecorders = []watcherRecorder{
 		{
@@ -135,7 +135,7 @@ func TestMaxQueueItemAgeScrapeFailure(t *testing.T) {
 	)
 
 	expectedError := "failure to collect metric"
-	mockWatcher, err := newMockWatcherFactory(errors.New(expectedError))("", "", "")
+	mockWatcher, err := newMockWatcherFactory(errors.New(expectedError))("", "", "", zap.NewNop())
 	require.NoError(t, err)
 	scraper.queueMaxAgeWatchers = []instanceWatcher{
 		{
@@ -165,7 +165,7 @@ func TestMaxQueueItemAgeNegativeDenominatorScrapeFailure(t *testing.T) {
 	)
 
 	expectedError := "Failed to scrape counter \"counter\": A counter with a negative denominator value was detected.\r\n"
-	mockWatcher, err := newMockWatcherFactory(errors.New(expectedError))("", "", "")
+	mockWatcher, err := newMockWatcherFactory(errors.New(expectedError))("", "", "", zap.NewNop())
 	require.NoError(t, err)
 	scraper.queueMaxAgeWatchers = []instanceWatcher{
 		{
