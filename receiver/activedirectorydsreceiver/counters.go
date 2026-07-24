@@ -237,5 +237,5 @@ type defaultWatcherCreator struct {
 }
 
 func (d defaultWatcherCreator) Create(counterName string) (winperfcounters.PerfCounterWatcher, error) {
-	return winperfcounters.NewWatcher(object, instanceName, counterName, d.logger)
+	return winperfcounters.NewWatcher(object, instanceName, counterName, winperfcounters.WithLogger(d.logger))
 }

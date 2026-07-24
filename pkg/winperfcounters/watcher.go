@@ -47,14 +47,22 @@ type perfCounter struct {
 	logger *zap.Logger
 }
 
+// WatcherOption configures a PerfCounterWatcher.
+type WatcherOption func(*perfCounter)
+
+// WithLogger sets the logger to be used by the watcher.
+func WithLogger(l *zap.Logger) WatcherOption {
+	return func(pc *perfCounter) { pc.logger = l }
+}
+
 // NewWatcher creates new PerfCounterWatcher by provided parts of its path.
-func NewWatcher(object, instance, counterName string, logger *zap.Logger) (PerfCounterWatcher, error) {
-	return NewWatcherFromPath(counterPath(object, instance, counterName), logger)
+func NewWatcher(object, instance, counterName string, opts ...WatcherOption) (PerfCounterWatcher, error) {
+	return NewWatcherFromPath(counterPath(object, instance, counterName), opts...)
 }
 
 // NewWatcherFromPath creates new PerfCounterWatcher by provided path.
-func NewWatcherFromPath(path string, logger *zap.Logger) (PerfCounterWatcher, error) {
-	counter, err := newPerfCounter(path, true, logger)
+func NewWatcherFromPath(path string, opts ...WatcherOption) (PerfCounterWatcher, error) {
+	counter, err := newPerfCounter(path, true, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create perf counter with path %v: %w", path, err)
 	}
@@ -70,7 +78,7 @@ func counterPath(object, instance, counterName string) string {
 }
 
 // newPerfCounter returns a new performance counter for the specified descriptor.
-func newPerfCounter(counterPath string, collectOnStartup bool, logger *zap.Logger) (*perfCounter, error) {
+func newPerfCounter(counterPath string, collectOnStartup bool, opts ...WatcherOption) (*perfCounter, error) {
 	query, handle, err := initQuery(counterPath, collectOnStartup)
 	if err != nil {
 		return nil, err
@@ -80,7 +88,10 @@ func newPerfCounter(counterPath string, collectOnStartup bool, logger *zap.Logge
 		path:   counterPath,
 		query:  query,
 		handle: *handle,
-		logger: logger,
+	}
+
+	for _, opt := range opts {
+		opt(counter)
 	}
 
 	return counter, nil
@@ -285,24 +296,31 @@ func removeItemAt[C CounterValue | RawCounterValue](vals []C, idx int) []C {
 func (pc *perfCounter) collectDataForScrape() (bool, error) {
 	if err := pc.query.CollectData(); err != nil {
 		var pdhErr *win_perf_counters.PdhError
-		if !errors.As(err, &pdhErr) || (pdhErr.ErrorCode != win_perf_counters.PDH_NO_DATA && pdhErr.ErrorCode != win_perf_counters.PDH_CALC_NEGATIVE_DENOMINATOR) {
-			return false, fmt.Errorf("failed to collect data for performance counter '%s': %w", pc.path, err)
-		}
-
-		if pdhErr.ErrorCode == win_perf_counters.PDH_NO_DATA {
-			// No data is available for the counter, so no error but also no data
-			return false, nil
-		}
-
-		if pdhErr.ErrorCode == win_perf_counters.PDH_CALC_NEGATIVE_DENOMINATOR {
+		if errors.As(err, &pdhErr) && pdhErr.ErrorCode == win_perf_counters.PDH_CALC_NEGATIVE_DENOMINATOR {
 			// A counter rolled over, so the value is invalid
 			// See https://support.microfocus.com/kb/doc.php?id=7010545
 			// Wait one second and retry once
 			time.Sleep(time.Second)
 			if retryErr := pc.query.CollectData(); retryErr != nil {
-				return false, fmt.Errorf("failed retry for performance counter '%s': %w", pc.path, err)
+				if IsIgnorableError(retryErr) {
+					if pc.logger != nil {
+						pc.logger.Debug("skipping PDH counter due to transient error on retry", zap.String("path", pc.path), zap.Error(retryErr))
+					}
+					return false, nil
+				}
+				return false, fmt.Errorf("failed retry for performance counter '%s': %w", pc.path, retryErr)
 			}
+			return true, nil
 		}
+
+		if IsIgnorableError(err) {
+			if pc.logger != nil {
+				pc.logger.Debug("skipping PDH counter due to transient error", zap.String("path", pc.path), zap.Error(err))
+			}
+			return false, nil
+		}
+
+		return false, fmt.Errorf("failed to collect data for performance counter '%s': %w", pc.path, err)
 	}
 
 	return true, nil

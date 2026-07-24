@@ -99,7 +99,7 @@ func TestScrapeFailure(t *testing.T) {
 	)
 
 	expectedError := "failure to collect metric"
-	mockWatcher, err := newMockWatcherFactory(errors.New(expectedError))("", "", "", zap.NewNop())
+	mockWatcher, err := newMockWatcherFactory(errors.New(expectedError))("", "", "")
 	require.NoError(t, err)
 	scraper.totalWatcherRecorders = []watcherRecorder{
 		{
@@ -135,7 +135,7 @@ func TestMaxQueueItemAgeScrapeFailure(t *testing.T) {
 	)
 
 	expectedError := "failure to collect metric"
-	mockWatcher, err := newMockWatcherFactory(errors.New(expectedError))("", "", "", zap.NewNop())
+	mockWatcher, err := newMockWatcherFactory(errors.New(expectedError))("", "", "")
 	require.NoError(t, err)
 	scraper.queueMaxAgeWatchers = []instanceWatcher{
 		{
@@ -165,7 +165,7 @@ func TestMaxQueueItemAgeNegativeDenominatorScrapeFailure(t *testing.T) {
 	)
 
 	expectedError := "Failed to scrape counter \"counter\": A counter with a negative denominator value was detected.\r\n"
-	mockWatcher, err := newMockWatcherFactory(mockIgnorableError{errors.New(expectedError)})("", "", "", zap.NewNop())
+	mockWatcher, err := newMockWatcherFactory(mockIgnorableError{errors.New(expectedError)})("", "", "")
 	require.NoError(t, err)
 	scraper.queueMaxAgeWatchers = []instanceWatcher{
 		{
@@ -228,14 +228,14 @@ type mockPerfCounter struct {
 }
 
 func newMockWatcherFactory(watchErr error) func(string, string,
-	string, *zap.Logger) (winperfcounters.PerfCounterWatcher, error) {
-	return func(string, string, string, *zap.Logger) (winperfcounters.PerfCounterWatcher, error) {
+	string, ...winperfcounters.WatcherOption) (winperfcounters.PerfCounterWatcher, error) {
+	return func(string, string, string, ...winperfcounters.WatcherOption) (winperfcounters.PerfCounterWatcher, error) {
 		return &mockPerfCounter{watchErr: watchErr, value: 1}, nil
 	}
 }
 
-func newMockWatcherFactorFromPath(watchErr error, value float64) func(string, *zap.Logger) (winperfcounters.PerfCounterWatcher, error) {
-	return func(_ string, _ *zap.Logger) (winperfcounters.PerfCounterWatcher, error) {
+func newMockWatcherFactorFromPath(watchErr error, value float64) func(string, ...winperfcounters.WatcherOption) (winperfcounters.PerfCounterWatcher, error) {
+	return func(_ string, _ ...winperfcounters.WatcherOption) (winperfcounters.PerfCounterWatcher, error) {
 		return &mockPerfCounter{watchErr: watchErr, value: value}, nil
 	}
 }

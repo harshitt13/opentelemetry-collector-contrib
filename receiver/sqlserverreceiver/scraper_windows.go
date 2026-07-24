@@ -66,7 +66,7 @@ func (s *sqlServerPCScraper) start(context.Context, component.Host) error {
 				perfCounterObj = "\\" + s.config.ComputerName + "\\MSSQL$" + s.config.InstanceName + ":" + pcr.object
 			}
 
-			w, err := winperfcounters.NewWatcher(perfCounterObj, pcr.instance, perfCounterName, s.logger)
+			w, err := winperfcounters.NewWatcher(perfCounterObj, pcr.instance, perfCounterName)
 			if err != nil {
 				s.logger.Warn(err.Error())
 				continue
@@ -102,9 +102,7 @@ func recordersPerDatabase(watcherRecorders []watcherRecorder) (map[string][]curr
 	for _, wr := range watcherRecorders {
 		counterValues, err := wr.watcher.ScrapeData()
 		if err != nil {
-			if !winperfcounters.IsIgnorableError(err) {
-				errs = multierr.Append(errs, err)
-			}
+			errs = multierr.Append(errs, err)
 			continue
 		}
 
